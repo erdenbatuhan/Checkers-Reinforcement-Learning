@@ -4,11 +4,13 @@ Created on Dec 3, 2016
 @author: Sam Ragusa
 '''
 
+import time
 import random
 import json
 from ast import literal_eval
 from Board import Board
 import matplotlib.pyplot as plt
+import numpy as np
 
 class Player:
     """
@@ -38,6 +40,153 @@ class Player:
         Gets the desired next move from the AI.
         """
         pass
+
+
+class DP_Value_Iteration(Player):
+
+    def __init__(self, the_player_id, epsilon=0.1, gamma=0.1, the_board=None):
+        self.player_id = the_player_id
+        self.epsilon = epsilon
+        self.gamma = gamma
+        self.board = the_board
+        self.new_states = []
+        self.value_func = {}
+        self.spots = []
+
+    def get_next_move(self):
+        if len(self.value_func) == 0:
+            self.value_func = self.value_iteration()
+
+        exit(0)
+
+        action = self.get_best_possible_action()
+        next_state = self.board.get_potential_spots_from_moves([action])[0]
+
+        self.new_states.append(next_state)
+        return action
+
+    def get_best_possible_action(self):
+        actions = self.board.get_possible_next_moves()
+
+        max_gain = 0
+        best_possible_action = actions[0]
+
+        for action in actions:
+            next_state = self.board.get_potential_spots_from_moves([action])[0]
+
+            if self.get_as_tuple(next_state) not in self.value_func:
+                self.value_func[self.get_as_tuple(next_state)] = 0
+
+            current_gain = self.value_func[self.get_as_tuple(next_state)]
+
+            if current_gain >= max_gain:
+                max_gain = current_gain
+                best_possible_action = action
+
+        return best_possible_action
+
+    def value_iteration(self):
+        states = self.get_states()
+
+        print("Value iteration started with %d possible states, its aim is to converge.." % len(states))
+        V = dict([(self.get_as_tuple(s), 0) for s in states])
+
+        while True:
+            delta = 0
+            v = V.copy()
+
+            for state in states:
+                players_info, actions, next_states, terminal_state = self.get_state_info(state)
+                max_gain = self.get_max_gain_from_actions(v, actions, next_states)
+
+                V[self.get_as_tuple(state)] = self.get_reward(players_info, terminal_state) + self.gamma * max_gain
+                delta = max(delta, abs(v[self.get_as_tuple(state)] - V[self.get_as_tuple(state)]))
+
+            print(delta)
+
+            if delta <= self.epsilon:
+                print("Converged! Value iteration finished..")
+                return v
+
+        return None
+
+    @staticmethod
+    def get_as_tuple(lst=None):
+        return tuple(tuple(item) for item in lst)
+
+    def get_state_info(self, state):
+        board = Board(state, self.board.player_turn)
+
+        players_info = get_number_of_pieces_and_kings(board.spots)
+        actions = board.get_possible_next_moves()
+        next_states = board.get_potential_spots_from_moves(actions)
+        terminal_state = False
+
+        if len(actions) == 0:  # A state is a terminal state if there is no action left to take from that state
+            terminal_state = True
+
+        return players_info, actions, next_states, terminal_state
+
+    def get_max_gain_from_actions(self, v, actions, next_states):
+        max_gain = 0
+
+        for action in range(len(actions)):
+            next_state = next_states[action]
+
+            if self.get_as_tuple(next_state) not in v:
+                v[self.get_as_tuple(next_state)] = 0
+
+            max_gain = max(max_gain, v[self.get_as_tuple(next_state)])
+
+        return max_gain
+
+    @staticmethod
+    def get_reward(state_info, terminal_state):
+        """
+            State Info: [P1_pieces, P2_pieces, P1_kings, P2_kings]
+            Terminal State: Game is won, lost or draw
+        """
+        if terminal_state:
+            if state_info[1] == 0 and state_info[3] == 0:  # Won
+                return 100
+            if state_info[0] == 0 and state_info[2] == 0:  # Lost
+                return -100
+
+            return 0  # Draw
+
+        return state_info[0] + 2 * state_info[2] - 0.95 * (state_info[1] + 2 * state_info[3])
+
+    def game_completed(self):
+        print("Game completed!")
+        print("Board status: %s" % str(self.board.spots))
+        print("Players' status: %s" % str(get_number_of_pieces_and_kings(self.board.spots)))
+
+        if len(self.new_states) > 1000:  # Save if more than 1000 states are accumulated
+            print("Saving %d incoming states.." % len(self.new_states))
+
+            states = self.get_states() + self.new_states
+            unique_states = self.get_unique_states(states)
+
+            self.save_states(unique_states)
+            self.new_states = []
+
+    @staticmethod
+    def get_states():
+        with open("states.json", 'r') as reader:
+            return json.load(reader)
+
+    @staticmethod
+    def get_unique_states(states):
+        states = tuple(tuple(tuple(ss) for ss in s) for s in states)
+        states = list(set(states))
+        states = list(list(list(ss) for ss in s) for s in states)
+
+        return states
+
+    @staticmethod
+    def save_states(states):
+        with open("states.json", 'w') as writer:
+            json.dump(states, writer)
 
 
 def reward_function(state_info1, state_info2):
@@ -541,7 +690,8 @@ ALPHA_BETA_DEPTH = 2
 TRAINING_MOVE_LIMIT = 500
 VALIDATION_MOVE_LIMIT = 1000
 TESTING_MOVE_LIMIT = 2000
-PLAYER1 = Q_Learning_AI(True, LEARNING_RATE, DISCOUNT_FACTOR, the_random_move_probability=TRAINING_RANDOM_MOVE_PROBABILITY)#, info_location="data.json")
+PLAYER0 = DP_Value_Iteration(True)
+PLAYER1 = Q_Learning_AI(False, LEARNING_RATE, DISCOUNT_FACTOR, the_random_move_probability=TRAINING_RANDOM_MOVE_PROBABILITY)#, info_location="data.json")
 PLAYER2 = Alpha_beta(False, ALPHA_BETA_DEPTH)
 #PLAYER3 = Alpha_beta(False, 1)
 PLAYER4 = Alpha_beta(False, 3)
@@ -553,6 +703,10 @@ PLAYER4 = Alpha_beta(False, 3)
 training_info = []
 validation_info = []
 for j in range(NUM_TRAINING_ROUNDS):
+    training_info.extend(play_n_games(PLAYER0, PLAYER1, NUM_GAMES_TO_TRAIN, TRAINING_MOVE_LIMIT))
+    print("Round " + str(j+1) + " completed!")
+    print("")
+    """
     training_info.extend(play_n_games(PLAYER1, PLAYER2, NUM_GAMES_TO_TRAIN, TRAINING_MOVE_LIMIT))
     PLAYER1.print_transition_information(PLAYER1.get_transitions_information())
     PLAYER1.set_random_move_probability(0)
@@ -565,6 +719,7 @@ for j in range(NUM_TRAINING_ROUNDS):
     #PLAYER1.print_transition_information(PLAYER1.get_transitions_information())
     print("")
     PLAYER1.save_transition_information()
+    """
  
     
 #plot_end_game_information(training_info, 200, "Training Information")
@@ -574,7 +729,7 @@ plt.show()
 pretty_outcome_display(training_info)
 print("")
 pretty_outcome_display(validation_info)
-  
+
 """
  
 PLAYER1.set_random_move_probability(0)
