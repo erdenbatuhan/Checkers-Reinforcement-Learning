@@ -6,10 +6,11 @@ which is showing the piece at [x1,x2] goes to [x2,y2] then [x3,y3] as one move
 -if self.player_turn == True then it is player 1's turn
 """
 
-
+import pickle
 import math
 import copy
 from functools import reduce
+
 
 class Board:
     """
@@ -23,8 +24,7 @@ class Board:
     BACKWARDS_PLAYER = P2
     HEIGHT = 8
     WIDTH = 4
-    
-    
+
     def __init__(self, old_spots=None, the_player_turn=True):
         """
         Initializes a new instance of the Board class.  Unless specified otherwise, 
@@ -37,8 +37,23 @@ class Board:
         if old_spots is None:   
             self.spots = [[j, j, j, j] for j in [self.P1, self.P1, self.P1, self.EMPTY_SPOT, self.EMPTY_SPOT, self.P2, self.P2, self.P2]]
         else:
-            self.spots = old_spots
+            self.spots = self.make_list(old_spots)
 
+    @staticmethod
+    def make_list(parent):
+        return list(list(child) for child in parent)
+
+    @staticmethod
+    def make_tuple(parent):
+        return tuple(tuple(child) for child in parent)
+
+    @staticmethod
+    def load(filename):
+        return pickle.load(open(filename, "rb"))
+
+    @staticmethod
+    def save(content, filename):
+        pickle.dump(content, open(filename, "wb"))
 
     def reset_board(self):
         """
@@ -46,15 +61,13 @@ class Board:
         starting position.
         """
         self.spots = Board().spots
-        
-    
+
     def empty_board(self):
         """
         Removes any pieces currently on the board and leaves the board with nothing but empty spots.
         """
         self.spots = [[j, j, j, j] for j in [self.EMPTY_SPOT] * self.HEIGHT]  # Make sure [self.EMPTY_SPOT]*self.HEIGHT] has no issues
-    
-    
+
     def is_game_over(self):
         """
         Finds out and returns weather the game currently being played is over or
@@ -64,7 +77,6 @@ class Board:
             return True
         return False
 
-
     def not_spot(self, loc):
         """
         Finds out of the spot at the given location is an actual spot on the game board.
@@ -72,8 +84,7 @@ class Board:
         if len(loc) == 0 or loc[0] < 0 or loc[0] > self.HEIGHT - 1 or loc[1] < 0 or loc[1] > self.WIDTH - 1:
             return True
         return False
-    
-    
+
     def get_spot_info(self, loc):
         """
         Gets the information about the spot at the given location.
@@ -82,7 +93,6 @@ class Board:
         Might want to not use this for the sake of computational time.
         """
         return self.spots[loc[0]][loc[1]]
-    
     
     def forward_n_locations(self, start_loc, n, backwards=False):
         """
@@ -114,7 +124,6 @@ class Board:
             answer[1] = []
             
         return answer
-    
 
     def get_simple_moves(self, start_loc):
         """    
@@ -140,8 +149,7 @@ class Board:
                     possible_next_locations.append(location)
             
         return [[start_loc, end_spot] for end_spot in possible_next_locations]      
-           
-     
+
     def get_capture_moves(self, start_loc, move_beginnings=None):
         """
         Recursively get all of the possible moves for a piece which involve capturing an opponent's piece.
@@ -161,8 +169,7 @@ class Board:
         else:
             next1 = self.forward_n_locations(start_loc, 1)
             next2 = self.forward_n_locations(start_loc, 2)
-        
-        
+
         for j in range(len(next1)):
             if (not self.not_spot(next2[j])) and (not self.not_spot(next1[j])) :  # if both spots exist
                 if self.get_spot_info(next1[j]) != self.EMPTY_SPOT and self.get_spot_info(next1[j]) % 2 != self.get_spot_info(start_loc) % 2:  # if next spot is opponent
@@ -186,8 +193,7 @@ class Board:
                             answer.append(temp_move1)
                             
         return answer
-    
-        
+
     def get_possible_next_moves(self):
         """
         Gets the possible moves that can be made from the current board configuration.
@@ -207,8 +213,7 @@ class Board:
             return list(reduce(lambda a, b: a + b, list(map(self.get_simple_moves, piece_locations))))  # CHECK IF OUTER LIST IS NECESSARY
         except TypeError:
             return []
-    
-    
+
     def make_move(self, move, switch_player_turn=True):
         """
         Makes a given move on the board, and (as long as is wanted) switches the indicator for
@@ -241,7 +246,6 @@ class Board:
                 
         if switch_player_turn:
             self.player_turn = not self.player_turn
-       
 
     def get_potential_spots_from_moves(self, moves):
         """
@@ -255,9 +259,8 @@ class Board:
             original_spots = copy.deepcopy(self.spots)
             self.make_move(move, switch_player_turn=False)
             answer.append(self.spots) 
-            self.spots = original_spots 
+            self.spots = original_spots
         return answer
-        
         
     def insert_pieces(self, pieces_info):
         """
@@ -267,7 +270,6 @@ class Board:
         """
         for piece_info in pieces_info:
             self.spots[piece_info[0]][piece_info[1]] = piece_info[2]
-        
     
     def get_symbol(self, location):
         """
@@ -283,8 +285,7 @@ class Board:
             return "O"
         else:
             return "X"
-    
-    
+
     def print_board(self):
         """
         Prints a string representation of the current game board.
@@ -301,7 +302,5 @@ class Board:
                 if i != 3 or j % 2 != 1:  # should figure out if this 3 should be changed to self.WIDTH-1
                     temp_line = temp_line + "///|"
             print(temp_line)
-            print(norm_line)            
-
-
+            print(norm_line)
 

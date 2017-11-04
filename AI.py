@@ -1,15 +1,14 @@
-'''
+"""
     @author of DP_Value_Iteration class:
         - Name:       Batuhan
         - Surname:    Erden
         - Student ID: S004345
         - Department: Department of Computer Science
-'''
+"""
 
-import pickle
-import json
 from Board import Board
 import matplotlib.pyplot as plt
+
 
 class Player:
     """
@@ -46,60 +45,57 @@ class DP_Value_Iteration(Player):
     def __init__(self, the_player_id, the_board=None):
         self.player_id = the_player_id
         self.board = the_board
-        self.new_states = []
+        self.value_func = {}
+        self.number_of_new_states = 0
 
     def game_completed(self):
         print("Game completed!")
         print("Board status: %s" % str(self.board.spots))
         print("Players' status: %s" % str(get_number_of_pieces_and_kings(self.board.spots)))
+        print("Saving %d new states.." % self.number_of_new_states)
 
-        if len(self.new_states) > 1000:  # Save if more than 1000 states are accumulated
-            print("Saving %d incoming states.." % len(self.new_states))
+        self.board.save(self.value_func, "value_func.pkl")
+        self.number_of_new_states = 0
 
-            states = self.get_states() + self.new_states
-            unique_states = self.get_unique_states(states)
-
-            self.save_states(unique_states)
-            self.new_states = []
+        print("Saved!")
 
     def get_next_move(self):
-        V = self.value_iteration()
+        if len(self.value_func) == 0:
+            self.value_func = self.value_iteration()
 
-        action = self.policy(V, self.board.spots)
+        action = self.policy(self.board.spots)
         next_state = self.board.get_potential_spots_from_moves([action])[0]
 
-        self.new_states.append(next_state)
+        self.add_new_incoming_states(self.board.spots, next_state)
         return action
 
-    def value_iteration(self, epsilon=0.0001, gamma=0.1):
-        """
-        If you want to start from an empty value function, you can replace 'self.get_value_function()'
-        with 'dict([(self.get_state_as_tuple(state), 0) for state in states])' in V assignment
-        """
+    def add_new_incoming_states(self, *states):
+        for state in states:
+            if self.board.make_tuple(state) not in self.value_func:
+                self.number_of_new_states += 1
+                self.value_func[self.board.make_tuple(state)] = 0
 
-        states = self.get_states()
-
-        print("Value iteration started with %d possible states, its aim is to converge.." % len(states))
-        # V = dict([(self.get_state_as_tuple(state), 0) for state in states])
-        V = self.get_value_function()
+    def value_iteration(self, epsilon=0.0001):
+        value_func = self.board.load("value_func.pkl")
+        print("Value iteration started with %d possible states, its aim is to converge.." % len(value_func))
 
         while True:
-            v = V.copy()
             delta = 0
 
-            for state in states:
-                V[self.get_list_as_tuple(state)] = self.bellman(gamma, v, state)
-                delta = max(delta, abs(v.get(self.get_list_as_tuple(state), 0) - V[self.get_list_as_tuple(state)]))
+            for state in value_func:
+                v = value_func[state]
+                value_func[state] = self.bellman(value_func, self.board.make_list(state))
+                delta = max(delta, abs(v - value_func[state]))
 
             print("delta: %.8f" % delta)
 
             if delta <= epsilon:
-                print("Converged! Value iteration finished..")
-                self.save_value_function(V)
+                print("Convergence achieved, value iteration finished!")
+                self.board.save(value_func, "value_func.pkl")
 
-                return V
+                return value_func
 
-    def policy(self, V, state):
+    def policy(self, state):
         board = Board(state, self.board.player_turn)
 
         actions = board.get_possible_next_moves()
@@ -108,21 +104,33 @@ class DP_Value_Iteration(Player):
         max_gain = 0
         best_possible_action = actions[0]
 
-        for action, next_state in actions, next_states:
-            if self.get_list_as_tuple(next_state) not in V:
-                V[self.get_list_as_tuple(next_state)] = 0
-
-            current_gain = V[self.get_list_as_tuple(next_state)]
+        for i in range(len(actions)):
+            current_gain = self.value_func.get(self.board.make_tuple(next_states[i]), 0)
 
             if current_gain >= max_gain:
                 max_gain = current_gain
-                best_possible_action = action
+                best_possible_action = actions[i]
 
         return best_possible_action
 
-    def bellman(self, gamma, v, state):
-        prob, max_gain = self.get_prob_and_max_gain_from_next_states(v, state)
-        return self.get_reward(state) + gamma * prob * max_gain
+    def bellman(self, value_func, state, gamma=0.1):
+        prob, max_gain = self.get_prob_and_max_gain_from_next_states(value_func, state)
+        return self.get_reward(state) + prob * gamma * max_gain
+
+    def get_prob_and_max_gain_from_next_states(self, value_func, state):
+        prob = 1
+        max_gain = 0
+        next_states = self.get_possible_next_states(state, self.board.player_turn)
+
+        for next_state in next_states:
+            opp_next_states = self.get_possible_next_states(next_state, not self.board.player_turn)
+            sigma = sum(value_func.get(self.board.make_tuple(opp_next_state), 0) for opp_next_state in opp_next_states)
+
+            if sigma >= max_gain:
+                prob = 1 if len(opp_next_states) == 0 else 1 / len(opp_next_states)
+                max_gain = sigma
+
+        return prob, max_gain
 
     def get_reward(self, state):
         """
@@ -148,21 +156,6 @@ class DP_Value_Iteration(Player):
 
         return state_info
 
-    def get_prob_and_max_gain_from_next_states(self, v, state):
-        prob = 1
-        max_gain = 0
-        next_states = self.get_possible_next_states(state, self.board.player_turn)
-
-        for next_state in next_states:
-            next_next_states = self.get_possible_next_states(next_state, not self.board.player_turn)
-            sum_next = sum(v.get(self.get_list_as_tuple(next_next_state), 0) for next_next_state in next_next_states)
-
-            if sum_next >= max_gain:
-                prob = 1 if len(next_next_states) == 0 else 1 / len(next_next_states)
-                max_gain = sum_next
-
-        return prob, max_gain
-
     @staticmethod
     def get_possible_next_states(state, player_turn):
         board = Board(state, player_turn)
@@ -174,36 +167,6 @@ class DP_Value_Iteration(Player):
             next_states = board.get_potential_spots_from_moves(actions)
 
         return next_states
-
-    @staticmethod
-    def get_list_as_tuple(lst=None):
-        return tuple(tuple(item) for item in lst)
-
-    @staticmethod
-    def get_states():
-        with open("states.json", 'r') as reader:
-            return json.load(reader)
-
-    @staticmethod
-    def get_unique_states(states):
-        states = tuple(tuple(tuple(ss) for ss in s) for s in states)
-        states = list(set(states))
-        states = list(list(list(ss) for ss in s) for s in states)
-
-        return states
-
-    @staticmethod
-    def save_states(states):
-        with open("states.json", 'w') as writer:
-            json.dump(states, writer)
-
-    @staticmethod
-    def get_value_function():
-        return pickle.load(open("value_function.pkl", "rb"))
-
-    @staticmethod
-    def save_value_function(value_function):
-        pickle.dump(value_function, open("value_function.pkl", "wb"))
 
 
 def get_number_of_pieces_and_kings(spots, player_id=None):
@@ -305,7 +268,7 @@ class Alpha_beta(Player):
     
     def get_next_move(self):
         return self.alpha_beta(self.board, self.depth, float('-inf'), float('inf'), self.player_id)[1]
-        
+
 
 def play_n_games(player1, player2, num_games, move_limit):
     """
@@ -399,7 +362,7 @@ def pretty_outcome_display(outcomes):
     print("Average moves made: ".ljust(35), total_moves/len(outcomes))
     print("Max moves made: ".ljust(35), max_moves_made)
     print("Min moves made: ".ljust(35), min_moves_made)
-    
+
 
 def plot_end_game_information(outcome, interval, title="End of Game Results"):
     """
@@ -444,6 +407,7 @@ PLAYER1 = Alpha_beta(False, ALPHA_BETA_DEPTH)
  
 training_info = []
 validation_info = []
+
 for j in range(NUM_TRAINING_ROUNDS):
     training_info.extend(play_n_games(PLAYER0, PLAYER1, NUM_GAMES_TO_TRAIN, TRAINING_MOVE_LIMIT))
     print("Round " + str(j+1) + " completed!")
