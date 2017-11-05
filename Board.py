@@ -49,7 +49,10 @@ class Board:
 
     @staticmethod
     def load(filename):
-        return pickle.load(open(filename, "rb"))
+        try:
+            return pickle.load(open(filename, "rb"))
+        except:
+            return {}
 
     @staticmethod
     def save(content, filename):
