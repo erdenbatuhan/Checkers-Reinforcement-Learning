@@ -1,10 +1,34 @@
 """
-    @author of DP_Value_Iteration class:
-        - Name:       Batuhan
-        - Surname:    Erden
-        - Student ID: S004345
-        - Department: Department of Computer Science
+Taken from: https://github.com/SamRagusa/Checkers-Reinforcement-Learning
+
+MIT License
+
+Copyright (c) 2017 Sam Ragusa
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
+
+"""
+    Contributor: Batuhan Erden
+    Contribution: @see report.pdf
+"""
+
 
 from Board import Board
 import matplotlib.pyplot as plt
@@ -49,20 +73,20 @@ class DP_Value_Iteration(Player):
         self.number_of_new_states = 0
 
     def game_completed(self):
-        print("Game completed!")
+        print("\nGame completed!")
         print("Board status: %s" % str(self.board.spots))
         print("Players' status: %s" % str(get_number_of_pieces_and_kings(self.board.spots)))
-        print("Saving %d new states.." % self.number_of_new_states)
-
-        self.board.save(self.value_func, "value_func.pkl")
+        
+        if self.number_of_new_states != 0:
+            print("Saving %d new states.." % self.number_of_new_states)
+            self.board.save(self.value_func, "value_func.pkl")
+            print("Saved!")
+        
         self.number_of_new_states = 0
 
-        print("Saved!")
-
     def get_next_move(self):
-        if len(self.value_func) == 0:
-            self.value_func = self.value_iteration()
-
+        self.value_func = self.value_iteration() if len(self.value_func) == 0 else self.value_func
+        
         action = self.policy(self.board.spots)
         next_state = self.board.get_potential_spots_from_moves([action])[0]
 
@@ -76,7 +100,7 @@ class DP_Value_Iteration(Player):
                 self.value_func[self.board.make_tuple(state)] = 0
 
     def value_iteration(self, epsilon=0.0001):
-        value_func = self.board.load("value_func.pkl")
+        value_func = self.board.load("value_func.pkl") if len(self.value_func) == 0 else self.value_func
         print("Value iteration started with %d possible states, its aim is to converge.." % len(value_func))
 
         while True:
@@ -396,8 +420,8 @@ def plot_end_game_information(outcome, interval, title="End of Game Results"):
     plt.legend(handles=[p1_win_graph, p2_win_graph, tie_graph, move_limit_graph])
 
 
-NUM_TRAINING_ROUNDS = 5
-NUM_GAMES_TO_TRAIN = 5
+NUM_TRAINING_ROUNDS = 25
+NUM_GAMES_TO_TRAIN = 25
 TRAINING_MOVE_LIMIT = 500
 
 ALPHA_BETA_DEPTH = 2
